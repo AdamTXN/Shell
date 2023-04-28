@@ -30,6 +30,7 @@
 #include <errno.h>
 #include <string.h>
 #include <signal.h>
+#include <ctype.h>
 
 #define WHITESPACE " \t\n"      // We want to split our command line up into tokens
                                 // so we need to define what delimits our tokens.
@@ -44,6 +45,9 @@ int main()
 {
 
   char * command_string = (char*) malloc( MAX_COMMAND_SIZE );
+  char history[100][MAX_COMMAND_SIZE];
+  int histCount = 0, arrayCount = 0, redo = -1;
+  pid_t array[100];
 
   while( 1 )
   {
@@ -55,16 +59,45 @@ int main()
     // This while command will wait here until the user
     // inputs something since fgets returns NULL when there
     // is no input
-    while( !fgets (command_string, MAX_COMMAND_SIZE, stdin) );
+
+    if (redo == -1)   //if there isnt !, then take user input
+    {
+      while( !fgets (command_string, MAX_COMMAND_SIZE, stdin) );
+    }
+    else
+    {
+      if (histCount > 15 && histCount >= redo)
+      {
+        strcpy(command_string, history[histCount - (16 - redo)]);
+        command_string[strlen(command_string) + 1] = '\0';
+        printf("%d is index after 15\n", histCount - (16 - redo));
+      }
+      else if (histCount <= 15 && histCount >= redo)      //re inserts old command into command_string
+      {
+        strcpy(command_string, history[redo]);
+        command_string[strlen(command_string) + 1] = '\0';
+        printf("%d is index\n", redo);
+      }
+      else
+      {
+        printf("Command does not exist in history\n");
+      }
+      redo = -1;
+    } 
 
     /* Parse input */
     char *token[MAX_NUM_ARGUMENTS];
+
+    for( int i = 0; i < MAX_NUM_ARGUMENTS; i++ )
+    {
+      token[i] = NULL;
+    }
 
     int   token_count = 0;                                 
                                                            
     // Pointer to point to the token
     // parsed by strsep
-    char *argument_ptr;                                         
+    char *argument_ptr = NULL;                                         
                                                            
     char *working_string  = strdup( command_string );                
 
@@ -86,17 +119,121 @@ int main()
     }
 
     // Now print the tokenized input as a debug check
-    // \TODO Remove this code and replace with your shell functionality
+    // \TODO Remove this for loop and replace with your shell functionality
 
-    int token_index  = 0;
-    for( token_index = 0; token_index < token_count; token_index ++ ) 
+    if (token[0] == NULL || strlen(token[0]) == 0)    //if user enters a blank
     {
-      printf("token[%d] = %s\n", token_index, token[token_index] );  
+      continue;
+    }
+    else
+    {
+      if (histCount < 100)    //adds commands to history array
+      {
+        command_string[strlen(command_string) - 1] = '\0';
+        strcpy(history[histCount], command_string);
+        printf("added to %d\n", histCount);
+        histCount++;
+      }
+      else
+      {
+        exit(0);
+      }
+    }
+
+    if (strcmp (token[0], "quit") == 0) //quit command
+    {
+      exit(0);
+    }
+    else if (strcmp(token[0], "exit") == 0) //exit command
+    {
+      exit(0);
+    }
+    else if (strcmp(token[0], "cd") == 0) //cd command
+    {
+      chdir(token[1]);
+    }
+    else if (token[0][0] == '!')    //redo previous commands
+    {
+      if (isdigit(token[0][1])) 
+      {
+        char* num = &token[0][1];
+        redo = atoi(num);
+      }
+    }
+    else if (strcmp(token[0], "history") == 0)
+    {
+      array[arrayCount] = -1;
+      arrayCount++;
+
+      if(histCount > 15)
+      {
+        int index = 0;
+        for (int i = histCount - 15; i < histCount; i++)
+        {
+          if(token[1] != NULL && strcmp(token[1], "-p") == 0)   //prints PID history
+          {
+            printf("%d: %s\n", array[i], history[i]);
+          }
+          else  //prints history after 15 entries
+          {
+            printf("%d: %s\n", index, history[i]);
+            index++;
+          }
+        }
+      }
+      else
+      {
+        for (int i = 0; i < histCount; i++)
+        {
+          if (token[1] != NULL && strcmp(token[1], "-p") == 0)  //prints PID history
+          {
+            printf("%d: %s\n", array[i], history[i]);
+          }
+          else  //prints history before 15 entries
+          {
+            printf("%d: %s\n", i, history[i]);
+          }
+        }
+      }
+
+    }
+    else
+    {
+      pid_t pid = fork();
+      if (pid == 0)   //if child
+      {
+        //printf("child\n");
+        int work = execvp(token[0], token); 
+        if (work == -1)
+        {
+          printf("%s: Command not found.\n", token[0]);
+          break;
+        }
+      }
+      else  //parent, gets the child PID after child runs
+      {
+        int status;
+        wait(&status);
+        array[arrayCount] = pid;
+        arrayCount++;
+      }
+    }
+
+    // Cleanup allocated memory
+    for( int i = 0; i < MAX_NUM_ARGUMENTS; i++ )
+    {
+      if( token[i] != NULL )
+      {
+        free( token[i] );
+      }
     }
 
     free( head_ptr );
 
   }
+
+  free( command_string );
+
   return 0;
   // e2520ca2-76f3-90d6-0242ac120003
 }

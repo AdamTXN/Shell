@@ -16,7 +16,7 @@ int main( )
     arguments[1] = ( char * ) malloc( strlen( "-l" ) );
 
     strncpy( arguments[0], "ls", strlen( "ls" ) );
-    strncpy( arguments[1], "-1", strlen( "-1" ) );
+    strncpy( arguments[1], "-l", strlen( "-l" ) );
 
     arguments[2] = NULL;
 
